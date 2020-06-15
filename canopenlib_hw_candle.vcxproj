@@ -11,8 +11,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectName>canopenlib32_hw.dll (Zanthic)</ProjectName>
-    <ProjectGuid>{E15E37A8-317C-4CF2-AC93-928465CC20B4}</ProjectGuid>
+    <ProjectName>canopenlib32_hw.dll (Candle)</ProjectName>
+    <ProjectGuid>{E10E37A8-317C-4CF2-AC93-923A85CC20B4}</ProjectGuid>
     <RootNamespace>canlib32</RootNamespace>
     <Keyword>Win32Proj</Keyword>
   </PropertyGroup>
@@ -101,19 +101,11 @@
       <TargetMachine>MachineX86</TargetMachine>
     </Link>
     <PostBuildEvent>
-      <Command>copy ..\bin\Release\canopenlib32_hw.dll ..\bin\Release\zip\dlls\zantic\canopenlib32_hw.dll</Command>
+      <Command>copy ..\bin\Release\canopenlib32_hw.dll ..\bin\Release\zip\dlls\candle\canopenlib32_hw.dll</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="C4UFX_LowLevFunc.cpp" />
     <ClCompile Include="canopenlib_hw.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <Library Include="CyAPI.lib" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="inc\C4UFX_LowLevFunc.h" />
-    <ClInclude Include="..\..\proj_src\canopen_stack\inc\canopenlib_hw.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
