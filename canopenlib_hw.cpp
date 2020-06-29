@@ -14,6 +14,7 @@
 
 #include <vector>
 #include <memory>
+#include <cassert>
 
 #include "candle.h"
 
@@ -33,7 +34,7 @@ struct py_candle_device;
 
 struct py_candle_channel {
 	py_candle_channel(py_candle_device& owner, uint8_t chanel = 0)
-		: owner{ owner }, _ch{ chanel }, echo_on{false} {	}
+		: owner{ owner }, _ch{ chanel } {	}
 
 	candle_capability_t capabilities() const {
 		candle_capability_t res;
@@ -45,19 +46,9 @@ struct py_candle_channel {
 
 	uint8_t chanel() const { return _ch; }
 
-	void setEchoEnabled(bool echoOn) {
-		echo_on = echoOn;
-	}
-
-	bool isEcho() const { return echo_on; }
-
 private:
 	py_candle_device& owner;
 	uint8_t _ch;
-	bool echo_on;
-
-	// RX FIFO
-	//struct fifo_t* _fifo;
 };
 
 struct py_candle_device {
@@ -80,6 +71,34 @@ private:
 	HANDLE _rx_thread;
 	bool _rx_thread_stop_req;
 };
+
+// CAN_MSG_RTR CAN_MSG_EXT - stack
+// CANDLE_ID_RTR CANDLE_ID_EXTENDED - candle
+static uint32_t flagsstack2dev(unsigned int f) {
+	uint8_t stack_flags = 0;
+
+	if (f & CAN_MSG_RTR) {
+		stack_flags |= CANDLE_ID_RTR >> 24;
+	}
+	if (f & CAN_MSG_EXT) {
+		stack_flags |= CANDLE_ID_EXTENDED >> 24;
+	}
+
+	return stack_flags;
+}
+
+static unsigned int flagsdev2stack(uint8_t f) {
+	unsigned int dev_flags = 0;
+
+	if (f & (CANDLE_ID_RTR >> 24)) {
+		dev_flags |= CAN_MSG_RTR;
+	}
+	if (f & (CANDLE_ID_EXTENDED >> 24)) {
+		dev_flags |= CAN_MSG_EXT;
+	}
+
+	return dev_flags;
+}
 
 BOOL APIENTRY DllMain(HMODULE hModule,
 	DWORD  ul_reason_for_call,
@@ -211,10 +230,7 @@ CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortBitrateSet(canPortHandle h
 CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortEcho(canPortHandle handle, bool enabled)
 {
 	// set device with "hande" echo "enabled"
-	auto h = reinterpret_cast<py_candle_device*>(handle);
-
-	h->chanel().setEchoEnabled(enabled);
-
+	// allways enabled on this adapter
 	return CANOPEN_OK;
 }
 
@@ -228,10 +244,6 @@ CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortGoBusOn(canPortHandle hand
 	auto h = reinterpret_cast<py_candle_device*>(handle);
 
 	int mode = CANDLE_MODE_NORMAL;
-	/*
-	if (h->chanel().isEcho()) {
-		mode |= CANDLE_MODE_LOOP_BACK;
-	}*/
 
 	return candle_channel_start(h->handle(),
 		h->chanel().chanel(),
@@ -265,12 +277,12 @@ CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortWrite(canPortHandle handle
 {
 	auto h = reinterpret_cast<py_candle_device*>(handle);
 	candle_frame_t frame{
-		0, id, dlc,  h->chanel().chanel(), flags, 0
+		0, id, dlc,  h->chanel().chanel(), flagsstack2dev(flags), 0
 	};
 	std::memcpy(frame.data, msg, sizeof(frame.data));
-	
+
 	return candle_frame_send(h->handle(), h->chanel().chanel(), &frame)
-		? CANOPEN_ERROR
+		? CANOPEN_OK
 		: CANOPEN_ERROR_DRIVER;
 }
 
@@ -284,6 +296,8 @@ CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortRead(canPortHandle handle,
 	unsigned int* dlc,
 	unsigned int* flags)
 {
+	assert(id && msg && dlc && flags);
+
 	candle_frame_t frame;
 	auto h = reinterpret_cast<py_candle_device*>(handle);
 
@@ -302,10 +316,11 @@ CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortRead(canPortHandle handle,
 		}
 	}
 
+	// if frame frame.echo_id == 0xFFFFFFFF - not an echo
 	*id = frame.can_id;
 	std::memcpy(msg, frame.data, sizeof(frame.data));
 	*dlc = frame.can_dlc;
-	*flags = frame.flags;
+	*flags = flagsdev2stack(frame.flags);
 
 	return CANOPEN_OK;
 }
