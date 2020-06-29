@@ -56,7 +56,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\canopenlib32_dll\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>candle-driver-dist\src\candle_api;..\canopenlib32_dll\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;CANLIB32_EXPORTS;PUMA_WRAPPER;_CRT_SECURE_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -75,6 +75,7 @@
       <DataExecutionPrevention />
       <TargetMachine>MachineX86</TargetMachine>
       <ShowProgress>NotSet</ShowProgress>
+      <AdditionalDependencies>winusb.lib;setupapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -99,7 +100,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="candle-driver-dist\src\candle_api\candle.c" />
+    <ClCompile Include="candle-driver-dist\src\candle_api\candle_ctrl_req.c" />
     <ClCompile Include="canopenlib_hw.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="candle-driver-dist\src\candle_api\candle.h" />
+    <ClInclude Include="candle-driver-dist\src\candle_api\candle_ctrl_req.h" />
+    <ClInclude Include="candle-driver-dist\src\candle_api\candle_defs.h" />
+    <ClInclude Include="candle-driver-dist\src\candle_api\ch_9.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

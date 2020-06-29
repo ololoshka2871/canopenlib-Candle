@@ -1,0 +1,3 @@
+[submodule "candle-driver-dist"]
+	path = candle-driver-dist
+	url = https://github.com/chemicstry/candle_driver.git
