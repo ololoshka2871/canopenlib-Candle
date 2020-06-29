@@ -64,8 +64,6 @@ struct py_candle_device {
 	py_candle_device(candle_handle dev)
 		: _handle(dev), _channel{ std::make_unique<py_candle_channel>(*this) } {}
 
-	void start_rx_thread() {}
-
 	candle_handle handle() const { return _handle; }
 	py_candle_channel& chanel() const { return *_channel; }
 
@@ -171,8 +169,6 @@ CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortOpen(int port, canPortHand
 		return CANOPEN_ERROR_HW_NOT_CONNECTED;
 	}
 
-	deviceOpening->start_rx_thread();
-
 	*handle = reinterpret_cast<canPortHandle>(deviceOpening);
 
 	return CANOPEN_OK;
@@ -232,10 +228,10 @@ CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortGoBusOn(canPortHandle hand
 	auto h = reinterpret_cast<py_candle_device*>(handle);
 
 	int mode = CANDLE_MODE_NORMAL;
-
+	/*
 	if (h->chanel().isEcho()) {
 		mode |= CANDLE_MODE_LOOP_BACK;
-	}
+	}*/
 
 	return candle_channel_start(h->handle(),
 		h->chanel().chanel(),
@@ -267,7 +263,15 @@ CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortWrite(canPortHandle handle
 	unsigned int dlc,
 	unsigned int flags)
 {
-	return CANOPEN_ERROR;
+	auto h = reinterpret_cast<py_candle_device*>(handle);
+	candle_frame_t frame{
+		0, id, dlc,  h->chanel().chanel(), flags, 0
+	};
+	std::memcpy(frame.data, msg, sizeof(frame.data));
+	
+	return candle_frame_send(h->handle(), h->chanel().chanel(), &frame)
+		? CANOPEN_ERROR
+		: CANOPEN_ERROR_DRIVER;
 }
 
 //------------------------------------------------------------------------
@@ -280,7 +284,30 @@ CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortRead(canPortHandle handle,
 	unsigned int* dlc,
 	unsigned int* flags)
 {
-	return CANOPEN_ERROR;
+	candle_frame_t frame;
+	auto h = reinterpret_cast<py_candle_device*>(handle);
+
+	if (!candle_frame_read(h->handle(), &frame, 10)) {
+		switch (candle_dev_last_error(h->handle()))
+		{
+		case CANDLE_ERR_READ_TIMEOUT:
+			return CANOPEN_ERROR_NO_MESSAGE;
+		case CANDLE_ERR_READ_WAIT:
+			return CANOPEN_ASYNC_TRANSFER;
+		case CANDLE_ERR_READ_RESULT:
+		case CANDLE_ERR_READ_SIZE:
+			return CANOPEN_INTERNAL_STATE_ERROR;
+		default:
+			return CANOPEN_ERROR_DRIVER;
+		}
+	}
+
+	*id = frame.can_id;
+	std::memcpy(msg, frame.data, sizeof(frame.data));
+	*dlc = frame.can_dlc;
+	*flags = frame.flags;
+
+	return CANOPEN_OK;
 }
 
 //------------------------------------------------------------------------
