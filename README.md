@@ -1,5 +1,5 @@
 # Readme
-[canopenlib](https://github.com/ulrikhagstrom/datalinkengineeringcanopen) library driver for [Candle Can adapter](https://github.com/ulrikhagstrom/datalinkengineeringcanopen)
+[canopenlib](https://github.com/ulrikhagstrom/datalinkengineeringcanopen) library driver for [Candle Can adapter](https://canable.io/)
 Based on chemicstry's [python example](https://github.com/chemicstry/candle_driver)
 
 ## Install
