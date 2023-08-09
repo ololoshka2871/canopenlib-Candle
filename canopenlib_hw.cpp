@@ -15,6 +15,9 @@
 #include <vector>
 #include <memory>
 #include <cassert>
+#include <map>
+#include <algorithm>
+#include <iterator>
 
 #include "candle.h"
 
@@ -31,6 +34,8 @@ extern "C" {
 #endif
 
 struct py_candle_device;
+
+static std::map<canPortHandle, py_candle_device*> handle_map{};
 
 struct py_candle_channel {
 	py_candle_channel(py_candle_device& owner, uint8_t chanel = 0)
@@ -53,7 +58,8 @@ private:
 
 struct py_candle_device {
 	py_candle_device(candle_handle dev)
-		: _handle(dev), _channel{ std::make_unique<py_candle_channel>(*this) } {}
+		: _handle(dev), _channel{ std::make_unique<py_candle_channel>(*this) },
+		_rx_thread{ nullptr }, _rx_thread_stop_req{ false } {}
 
 	candle_handle handle() const { return _handle; }
 	py_candle_channel& chanel() const { return *_channel; }
@@ -188,7 +194,22 @@ CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortOpen(int port, canPortHand
 		return CANOPEN_ERROR_HW_NOT_CONNECTED;
 	}
 
-	*handle = reinterpret_cast<canPortHandle>(deviceOpening);
+	int new_hande = 0;
+
+	if (!handle_map.empty()) {
+		std::vector<canPortHandle> used_handles;
+
+		std::transform(
+			handle_map.cbegin(),
+			handle_map.cend(),
+			std::back_inserter(used_handles),
+			[](auto pair) {return pair.first;});
+
+		new_hande = *std::max_element(used_handles.cbegin(), used_handles.cend()) + 1;
+	}
+
+	handle_map.insert({ new_hande, std::move(deviceOpening) });
+	*handle = new_hande;
 
 	return CANOPEN_OK;
 }
@@ -200,11 +221,13 @@ CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortOpen(int port, canPortHand
 CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortClose(canPortHandle handle)
 {
 	// close device with "handle" provided
-	auto h = reinterpret_cast<py_candle_device*>(handle);
+	auto h = handle_map[handle];
 
 	auto res = candle_dev_close(h->handle()) ? CANOPEN_OK : CANOPEN_ERROR;
 
 	candle_dev_free(h->handle());
+
+	handle_map.erase(handle);
 
 	return res;
 }
@@ -216,7 +239,7 @@ CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortClose(canPortHandle handle
 CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortBitrateSet(canPortHandle handle, int bitrate)
 {
 	// set device with "hande" new "bitrate"
-	auto h = reinterpret_cast<py_candle_device*>(handle);
+	auto h = handle_map[handle];
 
 	return candle_channel_set_bitrate(h->handle(), h->chanel().chanel(), bitrate)
 		? CANOPEN_OK
@@ -241,7 +264,7 @@ CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortEcho(canPortHandle handle,
 CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortGoBusOn(canPortHandle handle)
 {
 	// set device with "hande" enabled
-	auto h = reinterpret_cast<py_candle_device*>(handle);
+	auto h = handle_map[handle];
 
 	int mode = CANDLE_MODE_NORMAL;
 
@@ -258,7 +281,7 @@ CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortGoBusOn(canPortHandle hand
 CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortGoBusOff(canPortHandle handle)
 {
 	// set device with "hande" disabled
-	auto h = reinterpret_cast<py_candle_device*>(handle); 
+	auto h = handle_map[handle];
 
 	return candle_channel_stop(h->handle(),
 		h->chanel().chanel()
@@ -275,7 +298,7 @@ CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortWrite(canPortHandle handle
 	unsigned int dlc,
 	unsigned int flags)
 {
-	auto h = reinterpret_cast<py_candle_device*>(handle);
+	auto h = handle_map[handle];
 	candle_frame_t frame{
 		0, id, dlc,  h->chanel().chanel(), flagsstack2dev(flags), 0
 	};
@@ -299,7 +322,7 @@ CANOPENLIB_HW_API   canOpenStatus    __stdcall canPortRead(canPortHandle handle,
 	assert(id && msg && dlc && flags);
 
 	candle_frame_t frame;
-	auto h = reinterpret_cast<py_candle_device*>(handle);
+	auto h = handle_map[handle];
 
 	if (!candle_frame_read(h->handle(), &frame, 10)) {
 		switch (candle_dev_last_error(h->handle()))
@@ -333,7 +356,7 @@ CANOPENLIB_HW_API   canOpenStatus  __stdcall canPortGetSerialNumber(canPortHandl
 	char* buffer, int bufferLen)
 {
 	candle_device_config_t dconf;
-	auto h = reinterpret_cast<py_candle_device*>(handle);
+	auto h = handle_map[handle];
 
 	if (!candle_ctrl_get_config(static_cast<candle_device_t*>(h->handle()), &dconf)) {
 		return CANOPEN_ERROR;
